@@ -5,14 +5,15 @@ const sql = neon(process.env.DATABASE_URL);
 
 export default async function handler(req, res) {
   try {
+
     // ======================
-    // POST → استقبال الإشارة
+    // POST → استقبال IBI
     // ======================
     if (req.method === 'POST') {
-      const { device_id, signal, time } = req.body || {};
+      const { device_id, ibi, time } = req.body || {};
 
       // تحقق من البيانات
-      if (!device_id || typeof signal !== 'number') {
+      if (!device_id || typeof ibi !== 'number') {
         return res.status(400).json({
           message: 'Invalid or missing data',
           received: req.body
@@ -21,26 +22,31 @@ export default async function handler(req, res) {
 
       // إدخال البيانات في Neon
       await sql`
-        INSERT INTO sensor_data (device_id, signal, time)
-        VALUES (${device_id}, ${signal}, ${time || new Date().toISOString()})
+        INSERT INTO sensor_data (device_id, ibi, time)
+        VALUES (
+          ${device_id},
+          ${ibi},
+          ${time || new Date().toISOString()}
+        )
       `;
 
       return res.status(200).json({
-        message: 'Signal saved successfully',
+        message: 'IBI saved successfully',
         device_id,
-        signal
+        ibi,
+        bpm: Math.round(60000 / ibi)
       });
     }
 
     // ======================
-    // GET → جلب آخر 200 إشارة
+    // GET → جلب بيانات الرسم
     // ======================
     else if (req.method === 'GET') {
       const rows = await sql`
-        SELECT device_id, signal, time
+        SELECT device_id, ibi, time
         FROM sensor_data
         ORDER BY time ASC
-      
+        LIMIT 300
       `;
 
       return res.status(200).json(rows);

@@ -1,138 +1,45 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Medical ECG Dashboard</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-body{
-  margin:0;
-  background:#050b14;
-  color:#00ff9c;
-  font-family:'Segoe UI',sans-serif;
-}
-header{
-  padding:15px;
-  text-align:center;
-  font-size:22px;
-  box-shadow:0 0 20px #00ff9c;
-}
-.card{
-  margin:20px;
-  background:#02060c;
-  padding:20px;
-  border-radius:16px;
-  box-shadow:0 0 25px rgba(0,255,150,.3);
-}
-.value{
-  font-size:42px;
-  text-align:center;
-  margin-bottom:10px;
-}
-canvas{ height:320px !important; }
-</style>
-</head>
-
-<body>
-
-<header>🫀 ECG Monitor</header>
-
-<div class="card">
-  <div class="value" id="bpm">-- BPM</div>
-  <canvas id="ecg"></canvas>
-</div>
+<canvas id="ppg"></canvas>
 
 <script>
-const MAX_POINTS = 300;
-let labels = [];
-let ecgData = [];
-let bpm = 60;
+let data=[], labels=[];
+const MAX=300;
 
-// ==================
-// ECG Wave Generator
-// ==================
-function generateECGWave() {
-  let wave = [];
-  wave.push(0);   // baseline
-  wave.push(0.1); // P
-  wave.push(0);
-  wave.push(-0.2);
-  wave.push(1.2); // QRS
-  wave.push(-0.3);
-  wave.push(0);
-  wave.push(0.3); // T
-  wave.push(0);
-  return wave;
-}
-
-// ==================
-// Chart
-// ==================
-const ctx = document.getElementById('ecg').getContext('2d');
-const chart = new Chart(ctx,{
+const chart = new Chart(ppg,{
   type:'line',
   data:{
     labels,
     datasets:[{
-      data:ecgData,
+      data,
       borderColor:'#00ff9c',
       borderWidth:2,
-      tension:0.3,
-      pointRadius:0
+      pointRadius:0,
+      tension:0.3
     }]
   },
   options:{
     animation:false,
     scales:{
-      x:{ display:false },
-      y:{
-        min:-1.5,
-        max:1.5
-      }
+      x:{display:false},
+      y:{min:300,max:800}
     }
   }
 });
 
-// ==================
-// Add ECG Samples
-// ==================
-function addECGSample(){
-  const wave = generateECGWave();
-  wave.forEach(v=>{
-    ecgData.push(v);
-    labels.push('');
-    if(ecgData.length > MAX_POINTS){
-      ecgData.shift();
-      labels.shift();
-    }
-  });
+async function draw(){
+  const r = await fetch('/api/pulse?last=1');
+  const d = await r.json();
+  if(!d.length) return;
+
+  data.push(d[0].signal);
+  labels.push('');
+
+  if(data.length>MAX){
+    data.shift();
+    labels.shift();
+  }
+
   chart.update();
 }
 
-// ==================
-// Fetch BPM
-// ==================
-async function fetchBPM(){
-  const res = await fetch('/api/pulse');
-  const data = await res.json();
-  if(!data.length) return;
-
-  bpm = data[data.length-1].bpm;
-  document.getElementById('bpm').innerText = bpm + ' BPM';
-}
-
-// ==================
-// Timers
-// ==================
-setInterval(fetchBPM,2000);
-
-// ECG speed based on BPM
-setInterval(()=>{
-  addECGSample();
-}, () => 60000 / bpm / 8);
+setInterval(draw,20); // 50Hz
 </script>
-
-</body>
-</html>

@@ -5,6 +5,7 @@
 <title>PPG Live Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
 body {
   margin:0;
@@ -30,12 +31,15 @@ header {
   text-align:center;
   margin-bottom:10px;
 }
-canvas { height:320px !important; }
+canvas {
+  height:320px !important;
+}
 </style>
 </head>
 
 <body>
-<header>🫀 PPG Live Signal & BPM</header>
+
+<header>🫀 Live PPG Waveform & BPM</header>
 
 <div class="card">
   <div class="value" id="bpmValue">-- BPM</div>
@@ -43,111 +47,110 @@ canvas { height:320px !important; }
 </div>
 
 <script>
+// =========================
+// Variables
+// =========================
 const MAX_POINTS = 300;
 let labels = [];
 let signalData = [];
-let bpmValues = [];
 
 // =========================
-// Chart.js setup
+// Chart.js
 // =========================
 const ctx = document.getElementById('ppgChart').getContext('2d');
 const chart = new Chart(ctx,{
   type:'line',
-  data:{labels, datasets:[{
-    data: signalData,
-    borderColor:'#00ff9c',
-    borderWidth:2,
-    pointRadius:0,
-    tension:0.3,
-    fill:true,
-    backgroundColor:'rgba(0,255,156,0.2)'
-  }]},
+  data:{
+    labels,
+    datasets:[{
+      data: signalData,
+      borderColor:'#00ff9c',
+      borderWidth:2,
+      pointRadius:0,
+      tension:0.15,
+      fill:true,
+      backgroundColor:'rgba(0,255,156,0.15)'
+    }]
+  },
   options:{
     animation:false,
     responsive:true,
     scales:{
       x:{display:false},
-      y:{min:0, max:4095} // ADC ESP32
+      y:{
+        suggestedMin:1800,
+        suggestedMax:2600
+      }
     }
   }
 });
 
 // =========================
-// Simple Moving Average Filter
+// Signal Filter (Low-pass)
 // =========================
-function smoothSignal(signal, windowSize=5){
-  if(signalData.length<windowSize) return signal;
-  let sum=0;
-  for(let i=signalData.length-windowSize;i<signalData.length;i++){
-    sum+=signalData[i];
-  }
-  return (sum + signal)/(windowSize+1);
+let lastFiltered = 0;
+function filterSignal(v){
+  const alpha = 0.85;
+  const filtered = alpha * lastFiltered + (1 - alpha) * v;
+  lastFiltered = filtered;
+  return filtered;
 }
 
 // =========================
-// Peak Detection for BPM
+// Peak Detection → BPM
 // =========================
 let lastPeakTime = 0;
-let peakTimes = [];
+let prevSignal = 0;
+let bpm = null;
 
 function detectPeak(signal){
-  const threshold = 550; // عدّل حسب قوة الإشارة
+  const threshold = 30;
   const now = Date.now();
 
-  if(signal > threshold){
-    if(lastPeakTime===0 || (now - lastPeakTime) > 300){ // لا يقل عن 300ms بين النبضات
-      lastPeakTime = now;
-      peakTimes.push(now);
-
-      if(peakTimes.length>10) peakTimes.shift();
-
-      if(peakTimes.length>=2){
-        let intervals = [];
-        for(let i=1;i<peakTimes.length;i++){
-          intervals.push(peakTimes[i]-peakTimes[i-1]);
-        }
-        let avgInterval = intervals.reduce((a,b)=>a+b,0)/intervals.length;
-        let bpm = Math.round(60000/avgInterval);
-        return bpm;
-      }
+  if (
+    signal - prevSignal > threshold &&
+    signal > 2000 &&
+    (now - lastPeakTime) > 300
+  ) {
+    if (lastPeakTime !== 0) {
+      const ibi = now - lastPeakTime;
+      bpm = Math.round(60000 / ibi);
     }
+    lastPeakTime = now;
   }
-  return null;
+
+  prevSignal = signal;
 }
 
 // =========================
-// Fetch signal & update chart
+// Fetch Data from API
 // =========================
 async function update(){
   try {
-    const res = await fetch('/api/pulse'); // استدعاء pulse.js الجديد الذي يرسل signal
-    const arr = await res.json();
-    if(!arr.length) return;
+    const res = await fetch('/api/pulse');
+    const data = await res.json();
+    if(!data.length) return;
 
-    const last = arr[arr.length-1];
-    let signal = last.signal;
+    const last = data[data.length - 1];
+    let rawSignal = last.signal;
 
-    // smooth
-    signal = smoothSignal(signal,5);
+    // Filter
+    let signal = filterSignal(rawSignal);
 
-    // تحديث الرسم
+    // Update chart
     signalData.push(signal);
     labels.push('');
-    if(signalData.length>MAX_POINTS){
+
+    if(signalData.length > MAX_POINTS){
       signalData.shift();
       labels.shift();
     }
 
-    // حساب BPM
-    const bpm = detectPeak(signal);
-    if(bpm) bpmValues.push(bpm);
-
+    detectPeak(signal);
     chart.update();
 
-    // عرض BPM
-    if(bpmValues.length>0){
-      document.getElementById('bpmValue').innerText = bpmValues[bpmValues.length-1]+" BPM";
+    if(bpm && bpm >= 40 && bpm <= 180){
+      document.getElementById('bpmValue').innerText = bpm + " BPM";
     }
 
   } catch(e){
@@ -156,9 +159,9 @@ async function update(){
 }
 
 // =========================
-// Loop
+// Loop (50Hz)
 // =========================
-setInterval(update, 20); // تحديث ~50Hz
+setInterval(update, 20);
 </script>
 
 </body>

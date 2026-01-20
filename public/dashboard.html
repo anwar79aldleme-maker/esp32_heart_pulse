@@ -90,7 +90,7 @@ let lastPeakTime = 0;
 let peakTimes = [];
 
 function detectPeak(signal){
-  const threshold = 550; // عدّل حسب مستوى الإشارة
+  const threshold = 1600; // عدّل حسب مستوى الإشارة
   const now = Date.now();
 
   if(signal > threshold){

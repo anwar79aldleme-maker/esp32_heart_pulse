@@ -2,103 +2,136 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ESP32 Heart Waveform</title>
+<title>Medical ECG Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{
   margin:0;
-  background:#0a0f1a;
-  color:#00ffff;
-  font-family:Segoe UI;
+  background:#050b14;
+  color:#00ff9c;
+  font-family:'Segoe UI',sans-serif;
 }
 header{
   padding:15px;
   text-align:center;
   font-size:22px;
-  box-shadow:0 0 15px cyan;
+  box-shadow:0 0 20px #00ff9c;
 }
 .card{
   margin:20px;
-  background:rgba(0,0,0,.6);
+  background:#02060c;
   padding:20px;
-  border-radius:14px;
-  box-shadow:0 0 20px rgba(0,255,255,.3);
+  border-radius:16px;
+  box-shadow:0 0 25px rgba(0,255,150,.3);
 }
-canvas{
-  height:300px !important;
+.value{
+  font-size:42px;
+  text-align:center;
+  margin-bottom:10px;
 }
+canvas{ height:320px !important; }
 </style>
 </head>
 
 <body>
 
-<script>
-if(localStorage.getItem('auth')!=='1') location.href='/login.html';
-</script>
-
-<header>
-❤️ ESP32 Heart Pulse Waveform
-</header>
+<header>🫀 ECG Monitor</header>
 
 <div class="card">
-  <canvas id="waveChart"></canvas>
+  <div class="value" id="bpm">-- BPM</div>
+  <canvas id="ecg"></canvas>
 </div>
 
 <script>
-const MAX_POINTS = 200;
+const MAX_POINTS = 300;
 let labels = [];
-let waveData = [];
+let ecgData = [];
+let bpm = 60;
 
-const ctx = document.getElementById('waveChart').getContext('2d');
+// ==================
+// ECG Wave Generator
+// ==================
+function generateECGWave() {
+  let wave = [];
+  wave.push(0);   // baseline
+  wave.push(0.1); // P
+  wave.push(0);
+  wave.push(-0.2);
+  wave.push(1.2); // QRS
+  wave.push(-0.3);
+  wave.push(0);
+  wave.push(0.3); // T
+  wave.push(0);
+  return wave;
+}
 
-const waveChart = new Chart(ctx,{
+// ==================
+// Chart
+// ==================
+const ctx = document.getElementById('ecg').getContext('2d');
+const chart = new Chart(ctx,{
   type:'line',
   data:{
     labels,
     datasets:[{
-      label:'Heart Pulse Signal',
-      data:waveData,
-      borderColor:'#00ffff',
+      data:ecgData,
+      borderColor:'#00ff9c',
       borderWidth:2,
-      tension:0.4,
-      pointRadius:0,
-      fill:false
+      tension:0.3,
+      pointRadius:0
     }]
   },
   options:{
     animation:false,
-    responsive:true,
     scales:{
       x:{ display:false },
       y:{
-        min:0,
-        max:1023   /* عدلها حسب دقة ADC */
+        min:-1.5,
+        max:1.5
       }
     }
   }
 });
 
-async function loadWave(){
-  const res = await fetch('/api/get');
+// ==================
+// Add ECG Samples
+// ==================
+function addECGSample(){
+  const wave = generateECGWave();
+  wave.forEach(v=>{
+    ecgData.push(v);
+    labels.push('');
+    if(ecgData.length > MAX_POINTS){
+      ecgData.shift();
+      labels.shift();
+    }
+  });
+  chart.update();
+}
+
+// ==================
+// Fetch BPM
+// ==================
+async function fetchBPM(){
+  const res = await fetch('/api/pulse');
   const data = await res.json();
   if(!data.length) return;
 
-  const last = data[data.length-1];
-
-  waveData.push(last.pulse);
-  labels.push('');
-
-  if(waveData.length > MAX_POINTS){
-    waveData.shift();
-    labels.shift();
-  }
-
-  waveChart.update();
+  bpm = data[data.length-1].bpm;
+  document.getElementById('bpm').innerText = bpm + ' BPM';
 }
 
-setInterval(loadWave,100); // سرعة الرسم
+// ==================
+// Timers
+// ==================
+setInterval(fetchBPM,2000);
+
+// ECG speed based on BPM
+setInterval(()=>{
+  addECGSample();
+}, () => 60000 / bpm / 8);
 </script>
 
 </body>

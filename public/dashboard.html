@@ -2,74 +2,80 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>PPG Live Dashboard</title>
+<title>Heart Pulse Dashboard (IBI)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body {
+body{
   margin:0;
   background:#050b14;
   color:#00ff9c;
   font-family:Segoe UI;
 }
-header {
+header{
   padding:15px;
   text-align:center;
   font-size:22px;
   box-shadow:0 0 20px #00ff9c;
 }
-.card {
+.card{
   margin:20px;
-  background:rgba(0,0,0,0.6);
+  background:rgba(0,0,0,.6);
   padding:20px;
   border-radius:16px;
-  box-shadow:0 0 25px rgba(0,255,150,0.3);
+  box-shadow:0 0 25px rgba(0,255,150,.3);
 }
-.value {
+.value{
   font-size:42px;
   text-align:center;
   margin-bottom:10px;
 }
-canvas {
-  height:320px !important;
+canvas{
+  height:300px !important;
 }
 </style>
 </head>
 
 <body>
 
-<header>🫀 Live PPG Waveform & BPM</header>
+<header>🫀 Live Heart Pulse (IBI)</header>
 
 <div class="card">
   <div class="value" id="bpmValue">-- BPM</div>
-  <canvas id="ppgChart"></canvas>
+  <canvas id="pulseChart"></canvas>
 </div>
 
 <script>
-// =========================
-// Variables
-// =========================
-const MAX_POINTS = 300;
-let labels = [];
-let signalData = [];
+// ===============================
+// CONFIG
+// ===============================
+const API_URL = "https://esp32heartpulseonedevice.vercel.app/api/pulse";
+const MAX_POINTS = 120;
 
-// =========================
+// ===============================
+// DATA
+// ===============================
+let labels = [];
+let pulseData = [];
+let bpm = null;
+
+// ===============================
 // Chart.js
-// =========================
-const ctx = document.getElementById('ppgChart').getContext('2d');
+// ===============================
+const ctx = document.getElementById("pulseChart").getContext("2d");
 const chart = new Chart(ctx,{
-  type:'line',
+  type:"line",
   data:{
     labels,
     datasets:[{
-      data: signalData,
-      borderColor:'#00ff9c',
+      data:pulseData,
+      borderColor:"#00ff9c",
       borderWidth:2,
+      tension:0.4,
       pointRadius:0,
-      tension:0.15,
       fill:true,
-      backgroundColor:'rgba(0,255,156,0.15)'
+      backgroundColor:"rgba(0,255,156,.15)"
     }]
   },
   options:{
@@ -78,90 +84,87 @@ const chart = new Chart(ctx,{
     scales:{
       x:{display:false},
       y:{
-        suggestedMin:1800,
-        suggestedMax:2600
+        suggestedMin:400,
+        suggestedMax:1200,
+        title:{
+          display:true,
+          text:"IBI (ms)"
+        }
       }
     }
   }
 });
 
-// =========================
-// Signal Filter (Low-pass)
-// =========================
-let lastFiltered = 0;
-function filterSignal(v){
-  const alpha = 0.85;
-  const filtered = alpha * lastFiltered + (1 - alpha) * v;
-  lastFiltered = filtered;
-  return filtered;
+// ===============================
+// IBI → BPM
+// ===============================
+function calculateBPM(ibi){
+  return Math.round(60000 / ibi);
 }
 
-// =========================
-// Peak Detection → BPM
-// =========================
-let lastPeakTime = 0;
-let prevSignal = 0;
-let bpm = null;
+// ===============================
+// Create Pulse Shape from IBI
+// ===============================
+function generatePulse(ibi){
+  /*
+   نحول كل نبضة إلى شكل موجة:
+   ارتفاع → هبوط (pseudo ECG / pulse)
+  */
+  const samples = 5;
+  let wave = [];
 
-function detectPeak(signal){
-  const threshold = 30;
-  const now = Date.now();
-
-  if (
-    signal - prevSignal > threshold &&
-    signal > 2000 &&
-    (now - lastPeakTime) > 300
-  ) {
-    if (lastPeakTime !== 0) {
-      const ibi = now - lastPeakTime;
-      bpm = Math.round(60000 / ibi);
+  for(let i=0;i<samples;i++){
+    let value;
+    if(i < samples/2){
+      value = ibi - i*20;
+    } else {
+      value = ibi - (samples-i)*20;
     }
-    lastPeakTime = now;
+    wave.push(value);
   }
-
-  prevSignal = signal;
+  return wave;
 }
 
-// =========================
-// Fetch Data from API
-// =========================
+// ===============================
+// Fetch & Update
+// ===============================
 async function update(){
-  try {
-    const res = await fetch('/api/pulse');
+  try{
+    const res = await fetch(API_URL);
     const data = await res.json();
-    if(!data.length) return;
+    if(!Array.isArray(data) || data.length===0) return;
 
-    const last = data[data.length - 1];
-    let rawSignal = last.signal;
+    const last = data[data.length-1];
 
-    // Filter
-    let signal = filterSignal(rawSignal);
+    if(typeof last.ibi !== "number") return;
 
-    // Update chart
-    signalData.push(signal);
-    labels.push('');
+    bpm = calculateBPM(last.ibi);
+    document.getElementById("bpmValue").innerText = bpm + " BPM";
 
-    if(signalData.length > MAX_POINTS){
-      signalData.shift();
+    // توليد شكل النبضة
+    const pulseWave = generatePulse(last.ibi);
+
+    pulseWave.forEach(v=>{
+      pulseData.push(v);
+      labels.push("");
+    });
+
+    while(pulseData.length > MAX_POINTS){
+      pulseData.shift();
       labels.shift();
     }
 
-    detectPeak(signal);
     chart.update();
 
-    if(bpm && bpm >= 40 && bpm <= 180){
-      document.getElementById('bpmValue').innerText = bpm + " BPM";
-    }
-
-  } catch(e){
-    console.error(e);
+  }catch(err){
+    console.error("Dashboard error:", err);
   }
 }
 
-// =========================
-// Loop (50Hz)
-// =========================
-setInterval(update, 20);
+// ===============================
+// Loop
+// ===============================
+setInterval(update, 300); // كل نبضة تقريبًا
 </script>
 
 </body>

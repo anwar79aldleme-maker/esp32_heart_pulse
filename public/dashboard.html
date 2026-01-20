@@ -6,31 +6,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body{
+body {
   margin:0;
   background:#050b14;
   color:#00ff9c;
   font-family:Segoe UI;
 }
-header{
+header {
   padding:15px;
   text-align:center;
   font-size:22px;
   box-shadow:0 0 20px #00ff9c;
 }
-.card{
+.card {
   margin:20px;
   background:rgba(0,0,0,0.6);
   padding:20px;
   border-radius:16px;
   box-shadow:0 0 25px rgba(0,255,150,0.3);
 }
-.value{
+.value {
   font-size:42px;
   text-align:center;
   margin-bottom:10px;
 }
-canvas{height:320px !important;}
+canvas { height:320px !important; }
 </style>
 </head>
 
@@ -43,7 +43,7 @@ canvas{height:320px !important;}
 </div>
 
 <script>
-const MAX_POINTS = 300;
+const MAX_POINTS = 300;   // عدد نقاط الرسم
 let labels = [];
 let data = [];
 let bpmValues = [];
@@ -65,8 +65,8 @@ const chart = new Chart(ctx,{
     animation:false,
     responsive:true,
     scales:{
-      x:{display:false},
-      y:{min:300,max:800}
+      x:{ display:false },
+      y:{ min:0, max:4095 }  // <- عدّل هذا حسب ADC البن
     }
   }
 });
@@ -94,7 +94,7 @@ function detectPeak(signal){
   const now = Date.now();
 
   if(signal > threshold){
-    if(lastPeakTime===0 || (now - lastPeakTime)>300){
+    if(lastPeakTime===0 || (now - lastPeakTime) > 300){ // لا يقل عن 300ms بين النبضات
       lastPeakTime = now;
       peakTimes.push(now);
 
@@ -115,40 +115,44 @@ function detectPeak(signal){
 }
 
 // =========================
-// Fetch and update
+// Fetch signal and update
 // =========================
 async function update(){
-  const res = await fetch('/api/pulse?last=1');
-  const arr = await res.json();
-  if(!arr.length) return;
+  try {
+    const res = await fetch('/api/pulse');
+    const arr = await res.json();
+    if(!arr.length) return;
 
-  let signal = arr[0].signal;
+    // آخر إشارة
+    let signal = arr[arr.length-1].signal;
 
-  // smooth
-  signal = smoothSignal(signal,5);
-  data.push(signal);
-  labels.push('');
+    // smooth
+    signal = smoothSignal(signal,5);
 
-  if(data.length>MAX_POINTS){
-    data.shift();
-    labels.shift();
-  }
+    // تحديث الرسم
+    data.push(signal);
+    labels.push('');
+    if(data.length>MAX_POINTS){ data.shift(); labels.shift(); }
 
-  // detect BPM
-  const bpm = detectPeak(signal);
-  if(bpm) bpmValues.push(bpm);
+    // detect BPM
+    const bpm = detectPeak(signal);
+    if(bpm) bpmValues.push(bpm);
 
-  // update chart & bpm display
-  chart.update();
-  if(bpmValues.length>0){
-    document.getElementById('bpmValue').innerText = bpmValues[bpmValues.length-1]+" BPM";
+    chart.update();
+
+    // عرض BPM الحالي
+    if(bpmValues.length>0){
+      document.getElementById('bpmValue').innerText = bpmValues[bpmValues.length-1] + " BPM";
+    }
+  } catch(e){
+    console.error(e);
   }
 }
 
 // =========================
 // Loop
 // =========================
-setInterval(update,20); // 50Hz تحديث
+setInterval(update,20); // تحديث كل 20ms ≈ 50Hz
 </script>
 
 </body>

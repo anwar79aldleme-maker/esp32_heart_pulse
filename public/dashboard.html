@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Heart Pulse Dashboard (IBI)</title>
+<title>Heart Pulse Dashboard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -39,7 +39,7 @@ canvas{
 
 <body>
 
-<header>🫀 Live Heart Pulse (IBI)</header>
+<header>🫀 Live Heart Pulse</header>
 
 <div class="card">
   <div class="value" id="bpmValue">-- BPM</div>
@@ -47,22 +47,23 @@ canvas{
 </div>
 
 <script>
-// ===============================
+// =======================
 // CONFIG
-// ===============================
+// =======================
 const API_URL = "https://esp32heartpulseonedevice.vercel.app/api/pulse";
 const MAX_POINTS = 120;
 
-// ===============================
+// =======================
 // DATA
-// ===============================
+// =======================
 let labels = [];
 let pulseData = [];
+let lastTime = null;
 let bpm = null;
 
-// ===============================
-// Chart.js
-// ===============================
+// =======================
+// Chart
+// =======================
 const ctx = document.getElementById("pulseChart").getContext("2d");
 const chart = new Chart(ctx,{
   type:"line",
@@ -72,8 +73,8 @@ const chart = new Chart(ctx,{
       data:pulseData,
       borderColor:"#00ff9c",
       borderWidth:2,
-      tension:0.4,
       pointRadius:0,
+      tension:0.4,
       fill:true,
       backgroundColor:"rgba(0,255,156,.15)"
     }]
@@ -95,76 +96,56 @@ const chart = new Chart(ctx,{
   }
 });
 
-// ===============================
-// IBI → BPM
-// ===============================
-function calculateBPM(ibi){
-  return Math.round(60000 / ibi);
-}
+// =======================
+// Generate pulse shape
+// =======================
+function drawPulse(ibi){
+  const shape = [ibi, ibi-40, ibi-80, ibi-40, ibi];
+  shape.forEach(v=>{
+    pulseData.push(v);
+    labels.push("");
+  });
 
-// ===============================
-// Create Pulse Shape from IBI
-// ===============================
-function generatePulse(ibi){
-  /*
-   نحول كل نبضة إلى شكل موجة:
-   ارتفاع → هبوط (pseudo ECG / pulse)
-  */
-  const samples = 5;
-  let wave = [];
-
-  for(let i=0;i<samples;i++){
-    let value;
-    if(i < samples/2){
-      value = ibi - i*20;
-    } else {
-      value = ibi - (samples-i)*20;
-    }
-    wave.push(value);
+  while(pulseData.length > MAX_POINTS){
+    pulseData.shift();
+    labels.shift();
   }
-  return wave;
 }
 
-// ===============================
-// Fetch & Update
-// ===============================
+// =======================
+// Update
+// =======================
 async function update(){
   try{
     const res = await fetch(API_URL);
     const data = await res.json();
-    if(!Array.isArray(data) || data.length===0) return;
+
+    if(!Array.isArray(data) || data.length < 2) return;
 
     const last = data[data.length-1];
+    const prev = data[data.length-2];
 
-    if(typeof last.ibi !== "number") return;
+    const t1 = new Date(prev.time).getTime();
+    const t2 = new Date(last.time).getTime();
 
-    bpm = calculateBPM(last.ibi);
+    if(!t1 || !t2) return;
+
+    const ibi = t2 - t1;
+
+    if(ibi < 300 || ibi > 2000) return;
+
+    bpm = Math.round(60000 / ibi);
     document.getElementById("bpmValue").innerText = bpm + " BPM";
 
-    // توليد شكل النبضة
-    const pulseWave = generatePulse(last.ibi);
-
-    pulseWave.forEach(v=>{
-      pulseData.push(v);
-      labels.push("");
-    });
-
-    while(pulseData.length > MAX_POINTS){
-      pulseData.shift();
-      labels.shift();
-    }
-
+    drawPulse(ibi);
     chart.update();
 
-  }catch(err){
-    console.error("Dashboard error:", err);
+  }catch(e){
+    console.error("Dashboard error:", e);
   }
 }
 
-// ===============================
-// Loop
-// ===============================
-setInterval(update, 300); // كل نبضة تقريبًا
+setInterval(update, 500);
 </script>
 
 </body>

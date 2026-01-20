@@ -74,7 +74,7 @@ const chart = new Chart(ctx,{
 // =========================
 // Simple Moving Average Filter
 // =========================
-function smoothSignal(signal, windowSize=3){
+function smoothSignal(signal, windowSize=5){
   if(data.length<windowSize) return signal;
   let sum=0;
   for(let i=data.length-windowSize;i<data.length;i++){
@@ -90,7 +90,7 @@ let lastPeakTime = 0;
 let peakTimes = [];
 
 function detectPeak(signal){
-  const threshold = 550; // adjust based on sensor
+  const threshold = 550; // عدّل حسب مستوى الإشارة
   const now = Date.now();
 
   if(signal > threshold){
@@ -98,10 +98,8 @@ function detectPeak(signal){
       lastPeakTime = now;
       peakTimes.push(now);
 
-      // keep last 10 peaks
       if(peakTimes.length>10) peakTimes.shift();
 
-      // calculate BPM
       if(peakTimes.length>=2){
         let intervals = [];
         for(let i=1;i<peakTimes.length;i++){
@@ -150,7 +148,7 @@ async function update(){
 // =========================
 // Loop
 // =========================
-setInterval(update,20); // 50Hz
+setInterval(update,20); // 50Hz تحديث
 </script>
 
 </body>

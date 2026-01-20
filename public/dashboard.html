@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,9 +43,9 @@ canvas { height:320px !important; }
 </div>
 
 <script>
-const MAX_POINTS = 300;   // عدد نقاط الرسم
+const MAX_POINTS = 300;
 let labels = [];
-let data = [];
+let signalData = [];
 let bpmValues = [];
 
 // =========================
@@ -55,19 +54,21 @@ let bpmValues = [];
 const ctx = document.getElementById('ppgChart').getContext('2d');
 const chart = new Chart(ctx,{
   type:'line',
-  data:{labels,datasets:[{
-    data,
+  data:{labels, datasets:[{
+    data: signalData,
     borderColor:'#00ff9c',
     borderWidth:2,
     pointRadius:0,
-    tension:0.2
+    tension:0.3,
+    fill:true,
+    backgroundColor:'rgba(0,255,156,0.2)'
   }]},
   options:{
     animation:false,
     responsive:true,
     scales:{
-      x:{ display:false },
-      y:{ min:0, max:4095 }  // <- عدّل هذا حسب ADC البن
+      x:{display:false},
+      y:{min:0, max:4095} // ADC ESP32
     }
   }
 });
@@ -76,10 +77,10 @@ const chart = new Chart(ctx,{
 // Simple Moving Average Filter
 // =========================
 function smoothSignal(signal, windowSize=5){
-  if(data.length<windowSize) return signal;
+  if(signalData.length<windowSize) return signal;
   let sum=0;
-  for(let i=data.length-windowSize;i<data.length;i++){
-    sum+=data[i];
+  for(let i=signalData.length-windowSize;i<signalData.length;i++){
+    sum+=signalData[i];
   }
   return (sum + signal)/(windowSize+1);
 }
@@ -91,7 +92,7 @@ let lastPeakTime = 0;
 let peakTimes = [];
 
 function detectPeak(signal){
-  const threshold = 1400; // عدّل حسب مستوى الإشارة
+  const threshold = 550; // عدّل حسب قوة الإشارة
   const now = Date.now();
 
   if(signal > threshold){
@@ -116,35 +117,39 @@ function detectPeak(signal){
 }
 
 // =========================
-// Fetch signal and update
+// Fetch signal & update chart
 // =========================
 async function update(){
   try {
-    const res = await fetch('/api/pulse');
+    const res = await fetch('/api/pulse'); // استدعاء pulse.js الجديد الذي يرسل signal
     const arr = await res.json();
     if(!arr.length) return;
 
-    // آخر إشارة
-    let signal = arr[arr.length-1].signal;
+    const last = arr[arr.length-1];
+    let signal = last.signal;
 
     // smooth
     signal = smoothSignal(signal,5);
 
     // تحديث الرسم
-    data.push(signal);
+    signalData.push(signal);
     labels.push('');
-    if(data.length>MAX_POINTS){ data.shift(); labels.shift(); }
+    if(signalData.length>MAX_POINTS){
+      signalData.shift();
+      labels.shift();
+    }
 
-    // detect BPM
+    // حساب BPM
     const bpm = detectPeak(signal);
     if(bpm) bpmValues.push(bpm);
 
     chart.update();
 
-    // عرض BPM الحالي
+    // عرض BPM
     if(bpmValues.length>0){
-      document.getElementById('bpmValue').innerText = bpmValues[bpmValues.length-1] + " BPM";
+      document.getElementById('bpmValue').innerText = bpmValues[bpmValues.length-1]+" BPM";
     }
+
   } catch(e){
     console.error(e);
   }
@@ -153,7 +158,7 @@ async function update(){
 // =========================
 // Loop
 // =========================
-setInterval(update,20); // تحديث كل 20ms ≈ 50Hz
+setInterval(update, 20); // تحديث ~50Hz
 </script>
 
 </body>

@@ -1,23 +1,69 @@
-<canvas id="ppg"></canvas>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PPG Live Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+body{
+  margin:0;
+  background:#050b14;
+  color:#00ff9c;
+  font-family:Segoe UI;
+}
+header{
+  padding:15px;
+  text-align:center;
+  font-size:22px;
+  box-shadow:0 0 20px #00ff9c;
+}
+.card{
+  margin:20px;
+  background:rgba(0,0,0,0.6);
+  padding:20px;
+  border-radius:16px;
+  box-shadow:0 0 25px rgba(0,255,150,0.3);
+}
+.value{
+  font-size:42px;
+  text-align:center;
+  margin-bottom:10px;
+}
+canvas{height:320px !important;}
+</style>
+</head>
+
+<body>
+<header>🫀 PPG Live Signal & BPM</header>
+
+<div class="card">
+  <div class="value" id="bpmValue">-- BPM</div>
+  <canvas id="ppgChart"></canvas>
+</div>
 
 <script>
-let data=[], labels=[];
-const MAX=300;
+const MAX_POINTS = 300;
+let labels = [];
+let data = [];
+let bpmValues = [];
 
-const chart = new Chart(ppg,{
+// =========================
+// Chart.js setup
+// =========================
+const ctx = document.getElementById('ppgChart').getContext('2d');
+const chart = new Chart(ctx,{
   type:'line',
-  data:{
-    labels,
-    datasets:[{
-      data,
-      borderColor:'#00ff9c',
-      borderWidth:2,
-      pointRadius:0,
-      tension:0.3
-    }]
-  },
+  data:{labels,datasets:[{
+    data,
+    borderColor:'#00ff9c',
+    borderWidth:2,
+    pointRadius:0,
+    tension:0.2
+  }]},
   options:{
     animation:false,
+    responsive:true,
     scales:{
       x:{display:false},
       y:{min:300,max:800}
@@ -25,21 +71,87 @@ const chart = new Chart(ppg,{
   }
 });
 
-async function draw(){
-  const r = await fetch('/api/pulse?last=1');
-  const d = await r.json();
-  if(!d.length) return;
+// =========================
+// Simple Moving Average Filter
+// =========================
+function smoothSignal(signal, windowSize=3){
+  if(data.length<windowSize) return signal;
+  let sum=0;
+  for(let i=data.length-windowSize;i<data.length;i++){
+    sum+=data[i];
+  }
+  return (sum + signal)/(windowSize+1);
+}
 
-  data.push(d[0].signal);
+// =========================
+// Peak Detection for BPM
+// =========================
+let lastPeakTime = 0;
+let peakTimes = [];
+
+function detectPeak(signal){
+  const threshold = 550; // adjust based on sensor
+  const now = Date.now();
+
+  if(signal > threshold){
+    if(lastPeakTime===0 || (now - lastPeakTime)>300){
+      lastPeakTime = now;
+      peakTimes.push(now);
+
+      // keep last 10 peaks
+      if(peakTimes.length>10) peakTimes.shift();
+
+      // calculate BPM
+      if(peakTimes.length>=2){
+        let intervals = [];
+        for(let i=1;i<peakTimes.length;i++){
+          intervals.push(peakTimes[i]-peakTimes[i-1]);
+        }
+        let avgInterval = intervals.reduce((a,b)=>a+b,0)/intervals.length;
+        let bpm = Math.round(60000/avgInterval);
+        return bpm;
+      }
+    }
+  }
+  return null;
+}
+
+// =========================
+// Fetch and update
+// =========================
+async function update(){
+  const res = await fetch('/api/pulse?last=1');
+  const arr = await res.json();
+  if(!arr.length) return;
+
+  let signal = arr[0].signal;
+
+  // smooth
+  signal = smoothSignal(signal,5);
+  data.push(signal);
   labels.push('');
 
-  if(data.length>MAX){
+  if(data.length>MAX_POINTS){
     data.shift();
     labels.shift();
   }
 
+  // detect BPM
+  const bpm = detectPeak(signal);
+  if(bpm) bpmValues.push(bpm);
+
+  // update chart & bpm display
   chart.update();
+  if(bpmValues.length>0){
+    document.getElementById('bpmValue').innerText = bpmValues[bpmValues.length-1]+" BPM";
+  }
 }
 
-setInterval(draw,20); // 50Hz
+// =========================
+// Loop
+// =========================
+setInterval(update,20); // 50Hz
 </script>
+
+</body>
+</html>

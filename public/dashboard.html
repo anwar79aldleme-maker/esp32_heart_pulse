@@ -1,151 +1,94 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Heart Pulse Dashboard</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-body{
-  margin:0;
-  background:#050b14;
-  color:#00ff9c;
-  font-family:Segoe UI;
-}
-header{
-  padding:15px;
-  text-align:center;
-  font-size:22px;
-  box-shadow:0 0 20px #00ff9c;
-}
-.card{
-  margin:20px;
-  background:rgba(0,0,0,.6);
-  padding:20px;
-  border-radius:16px;
-  box-shadow:0 0 25px rgba(0,255,150,.3);
-}
-.value{
-  font-size:42px;
-  text-align:center;
-  margin-bottom:10px;
-}
-canvas{
-  height:300px !important;
-}
-</style>
+  <meta charset="UTF-8">
+  <title>Heart Pulse Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
 <body>
 
-<header>🫀 Live Heart Pulse</header>
+<h2>Heart Pulse Signal</h2>
+<h3 id="bpm">BPM: --</h3>
 
-<div class="card">
-  <div class="value" id="bpmValue">-- BPM</div>
-  <canvas id="pulseChart"></canvas>
-</div>
+<canvas id="chart" width="400" height="200"></canvas>
 
 <script>
-// =======================
-// CONFIG
-// =======================
-const API_URL = "https://esp32heartpulseonedevice.vercel.app/api/pulse";
-const MAX_POINTS = 120;
+const ctx = document.getElementById("chart").getContext("2d");
 
-// =======================
-// DATA
-// =======================
-let labels = [];
-let pulseData = [];
-let lastTime = null;
-let bpm = null;
+const data = {
+  labels: [],
+  datasets: [{
+    label: "Signal",
+    data: [],
+    borderWidth: 2,
+    fill: false,
+    tension: 0.3
+  }]
+};
 
-// =======================
-// Chart
-// =======================
-const ctx = document.getElementById("pulseChart").getContext("2d");
-const chart = new Chart(ctx,{
-  type:"line",
-  data:{
-    labels,
-    datasets:[{
-      data:pulseData,
-      borderColor:"#00ff9c",
-      borderWidth:2,
-      pointRadius:0,
-      tension:0.4,
-      fill:true,
-      backgroundColor:"rgba(0,255,156,.15)"
-    }]
-  },
-  options:{
-    animation:false,
-    responsive:true,
-    scales:{
-      x:{display:false},
-      y:{
-        suggestedMin:400,
-        suggestedMax:1200,
-        title:{
-          display:true,
-          text:"IBI (ms)"
-        }
-      }
+const chart = new Chart(ctx, {
+  type: "line",
+  data: data,
+  options: {
+    animation: false,
+    scales: {
+      y: { min: 0, max: 4095 }
     }
   }
 });
 
 // =======================
-// Generate pulse shape
+// BPM from Signal (Peaks)
 // =======================
-function drawPulse(ibi){
-  const shape = [ibi, ibi-40, ibi-80, ibi-40, ibi];
-  shape.forEach(v=>{
-    pulseData.push(v);
-    labels.push("");
+function calculateBPM(signal, fs = 50) {
+  const threshold = 2000;   // عدّلها حسب الإشارة
+  let peaks = [];
+
+  for (let i = 1; i < signal.length - 1; i++) {
+    if (
+      signal[i] > threshold &&
+      signal[i] > signal[i - 1] &&
+      signal[i] > signal[i + 1]
+    ) {
+      peaks.push(i);
+    }
+  }
+
+  if (peaks.length < 2) return "--";
+
+  let intervals = [];
+  for (let i = 1; i < peaks.length; i++) {
+    intervals.push((peaks[i] - peaks[i - 1]) / fs);
+  }
+
+  const avgInterval =
+    intervals.reduce((a, b) => a + b, 0) / intervals.length;
+
+  return Math.round(60 / avgInterval);
+}
+
+// =======================
+// Fetch data
+// =======================
+async function fetchData() {
+  const res = await fetch("/api/latest");
+  const samples = await res.json();
+
+  data.labels = [];
+  data.datasets[0].data = [];
+
+  samples.forEach(s => {
+    data.labels.push("");
+    data.datasets[0].data.push(s.signal);
   });
 
-  while(pulseData.length > MAX_POINTS){
-    pulseData.shift();
-    labels.shift();
-  }
+  chart.update();
+
+  const bpm = calculateBPM(data.datasets[0].data);
+  document.getElementById("bpm").innerText = "BPM: " + bpm;
 }
 
-// =======================
-// Update
-// =======================
-async function update(){
-  try{
-    const res = await fetch(API_URL);
-    const data = await res.json();
-
-    if(!Array.isArray(data) || data.length < 2) return;
-
-    const last = data[data.length-1];
-    const prev = data[data.length-2];
-
-    const t1 = new Date(prev.time).getTime();
-    const t2 = new Date(last.time).getTime();
-
-    if(!t1 || !t2) return;
-
-    const ibi = t2 - t1;
-
-    if(ibi < 300 || ibi > 2000) return;
-
-    bpm = Math.round(60000 / ibi);
-    document.getElementById("bpmValue").innerText = bpm + " BPM";
-
-    drawPulse(ibi);
-    chart.update();
-
-  }catch(e){
-    console.error("Dashboard error:", e);
-  }
-}
-
-setInterval(update, 500);
+setInterval(fetchData, 1000);
 </script>
 
 </body>

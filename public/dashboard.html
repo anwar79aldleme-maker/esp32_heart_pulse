@@ -42,7 +42,7 @@ const chart = new Chart(ctx, {
 // BPM from Signal (Peaks)
 // =======================
 function calculateBPM(signal, fs = 50) {
-  const threshold = 2200;   // عدّلها حسب الإشارة
+  const threshold = 2600;   // عدّلها حسب الإشارة
   let peaks = [];
 
   for (let i = 1; i < signal.length - 1; i++) {

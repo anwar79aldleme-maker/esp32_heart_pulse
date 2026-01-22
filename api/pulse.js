@@ -1,33 +1,29 @@
-// ===== Global Buffer =====
-global.signalStore = global.signalStore || [];
+// api/pulse.js
+export default async function handler(req, res) {
 
-export default function handler(req, res) {
+  // مهم جداً
+  global.signalStore = global.signalStore || [];
 
-  // استقبال من ESP32
   if (req.method === "POST") {
     const { signal } = req.body;
 
-    if (signal === undefined) {
-      return res.status(400).json({ error: "signal missing" });
-    }
+    if (typeof signal === "number") {
+      global.signalStore.push(signal);
 
-    global.signalStore.push({
-      signal: Number(signal),
-      time: Date.now()
-    });
-
-    // حماية بسيطة من استهلاك الذاكرة (اختياري)
-    if (global.signalStore.length > 3000) {
-      global.signalStore.shift();
+      // حد أقصى للرسم (مثلاً 500 نقطة)
+      if (global.signalStore.length > 500) {
+        global.signalStore.shift();
+      }
     }
 
     return res.status(200).json({ ok: true });
   }
 
-  // إرسال للداشبورد
   if (req.method === "GET") {
-    return res.status(200).json(global.signalStore);
+    return res.status(200).json({
+      signal: global.signalStore
+    });
   }
 
-  return res.status(405).json({ error: "POST & GET only" });
+  res.status(405).json({ error: "Method not allowed" });
 }

@@ -5,13 +5,24 @@ const pool = new Pool({
 });
 
 export default async function handler(req, res) {
-  const result = await pool.query(
-    `SELECT signal, created_at
-     FROM sensor_data
-     ORDER BY created_at DESC
-    LIMIT 150
-  );
+  try {
+    const result = await pool.query(
+      `SELECT signal, created_at
+       FROM sensor_data
+       ORDER BY created_at DESC
+       
+    );
 
-  // نعكس الترتيب للرسم الصحيح
-  res.status(200).json(result.rows.reverse());
+    // عكس الترتيب للرسم
+    res.status(200).json(result.rows.reverse());
+
+  } catch (error) {
+    console.error("LATEST API ERROR:", error);
+
+    // مهم: نرجع JSON وليس HTML
+    res.status(500).json({
+      error: "Database error",
+      details: error.message
+    });
+  }
 }

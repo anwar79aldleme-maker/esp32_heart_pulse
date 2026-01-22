@@ -1,64 +1,48 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ECG Dashboard</title>
+<title>Heart Pulse Dashboard</title>
 <style>
-body { background:#0b1220; color:#00ffcc; text-align:center; }
-canvas { background:black; border:1px solid #00ffcc; }
+  canvas { border: 1px solid black; }
 </style>
 </head>
 <body>
-
-<h2>Live ECG</h2>
-<p id="info">Waiting...</p>
-<canvas id="ecg" width="900" height="300"></canvas>
+<h1>Heart Pulse Live</h1>
+<canvas id="pulseCanvas" width="800" height="200"></canvas>
 
 <script>
-const canvas = document.getElementById("ecg");
+const canvas = document.getElementById("pulseCanvas");
 const ctx = canvas.getContext("2d");
 let signal = [];
 
-function draw() {
-  ctx.clearRect(0,0,900,300);
-  ctx.beginPath();
-
-  for (let i = 0; i < signal.length; i++) {
-    let x = i * (900 / signal.length);
-    let y = 300 - (signal[i] / 4095) * 280;
-    if (i === 0) ctx.moveTo(x,y);
-    else ctx.lineTo(x,y);
+async function update() {
+  try {
+    const res = await fetch("/api/pulse");
+    const data = await res.json();
+    signal = data.signal || [];
+    draw();
+  } catch (e) {
+    console.error("Failed to fetch:", e);
   }
+}
 
-  ctx.strokeStyle = "#00ffcc";
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.beginPath();
+  const len = signal.length;
+  for (let i = 0; i < len; i++) {
+    const x = (i / 600) * canvas.width;
+    const y = canvas.height - (signal[i] / 4095) * canvas.height;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = "red";
+  ctx.lineWidth = 2;
   ctx.stroke();
 }
 
-function calcBPM(data) {
-  let peaks = 0;
-  const th = 2000;
-  for (let i = 1; i < data.length - 1; i++) {
-    if (data[i] > th && data[i] > data[i-1] && data[i] > data[i+1])
-      peaks++;
-  }
-  return peaks * 6;
-}
-
-async function update() {
-  const res = await fetch("/api/pulse");
-  const json = await res.json();
-  signal = json.signal || [];
-
-  if (signal.length > 50) {
-    draw();
-    document.getElementById("info").innerText =
-      "BPM: " + calcBPM(signal);
-  }
-}
-
-setInterval(update, 100);
-setInterval(draw, 33);
+setInterval(update, 100);  // تحديث كل 100ms
 </script>
-
 </body>
 </html>

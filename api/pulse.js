@@ -1,26 +1,33 @@
-let signalStore = [];
+// ===== Global Buffer =====
+global.signalStore = global.signalStore || [];
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "POST only" });
-  }
+export default function handler(req, res) {
 
-  try {
+  // استقبال من ESP32
+  if (req.method === "POST") {
     const { signal } = req.body;
 
-    if (!Array.isArray(signal)) {
-      return res.status(400).json({ error: "Invalid signal" });
+    if (signal === undefined) {
+      return res.status(400).json({ error: "signal missing" });
     }
 
-    signalStore.push(...signal);
+    global.signalStore.push({
+      signal: Number(signal),
+      time: Date.now()
+    });
 
-    // حماية الذاكرة فقط (اختياري)
-    if (signalStore.length > 5000) {
-      signalStore = signalStore.slice(-5000);
+    // حماية بسيطة من استهلاك الذاكرة (اختياري)
+    if (global.signalStore.length > 3000) {
+      global.signalStore.shift();
     }
 
-    res.status(200).json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(200).json({ ok: true });
   }
+
+  // إرسال للداشبورد
+  if (req.method === "GET") {
+    return res.status(200).json(global.signalStore);
+  }
+
+  return res.status(405).json({ error: "POST & GET only" });
 }

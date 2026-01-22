@@ -1,65 +1,79 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Heart Signal</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="UTF-8">
+  <title>Heart Pulse Dashboard</title>
+  <style>
+    body {
+      background: #0b1220;
+      color: #00ffcc;
+      font-family: Arial;
+      text-align: center;
+    }
+    canvas {
+      background: black;
+      border: 1px solid #00ffcc;
+    }
+  </style>
 </head>
 <body>
 
-<h2>BPM: <span id="bpm">--</span></h2>
-<canvas id="chart"></canvas>
+<h2>Live ECG Signal</h2>
+<p id="info">Waiting for data...</p>
+<canvas id="ecg" width="900" height="300"></canvas>
 
 <script>
-let data = [];
-let labels = [];
-let lastPeak = 0;
+const canvas = document.getElementById("ecg");
+const ctx = canvas.getContext("2d");
+
+let signal = [];
 let bpm = 0;
 
-const ctx = document.getElementById("chart");
-const chart = new Chart(ctx, {
-  type: "line",
-  data: {
-    labels,
-    datasets: [{
-      label: "Signal",
-      data,
-      borderWidth: 2,
-      pointRadius: 0
-    }]
-  },
-  options: {
-    animation: false,
-    scales: {
-      y: { min: 0, max: 4095 }
-    }
-  }
-});
+function drawECG() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-async function fetchData() {
-  const res = await fetch("/api/latest");
-  const json = await res.json();
+  ctx.beginPath();
+  ctx.strokeStyle = "#00ffcc";
 
-  json.signal.forEach(v => {
-    data.push(v);
-    labels.push("");
-
-    // Peak detection (بسيطة لكنها فعالة)
-    if (v > 2500 && Date.now() - lastPeak > 400) {
-      bpm = Math.round(60000 / (Date.now() - lastPeak));
-      lastPeak = Date.now();
-      document.getElementById("bpm").innerText = bpm;
-    }
-
-    if (data.length > 300) {
-      data.shift();
-      labels.shift();
-    }
+  signal.forEach((v, i) => {
+    const x = i * (canvas.width / signal.length);
+    const y = canvas.height - (v / 4095) * canvas.height;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
   });
 
-  chart.update();
+  ctx.stroke();
 }
 
-setInterval(fetchData, 100);
+function calculateBPM(data) {
+  let peaks = 0;
+  const threshold = 2300;
+
+  for (let i = 1; i < data.length - 1; i++) {
+    if (data[i] > threshold && data[i] > data[i - 1] && data[i] > data[i + 1]) {
+      peaks++;
+    }
+  }
+
+  return Math.round(peaks * 6); // 10 ثواني → BPM
+}
+
+async function update() {
+  const res = await fetch("/api/pulse");
+  const json = await res.json();
+
+  signal = json.signal || [];
+
+  if (signal.length > 20) {
+    bpm = calculateBPM(signal);
+    drawECG();
+
+    document.getElementById("info").innerHTML =
+      `Device: ${json.device_id} | BPM: ${bpm} | Time: ${new Date(json.time).toLocaleTimeString()}`;
+  }
+}
+
+setInterval(update, 100);
 </script>
 
 </body>

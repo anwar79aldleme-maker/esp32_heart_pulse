@@ -1,79 +1,63 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Heart Pulse Dashboard</title>
-  <style>
-    body {
-      background: #0b1220;
-      color: #00ffcc;
-      font-family: Arial;
-      text-align: center;
-    }
-    canvas {
-      background: black;
-      border: 1px solid #00ffcc;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>ECG Dashboard</title>
+<style>
+body { background:#0b1220; color:#00ffcc; text-align:center; }
+canvas { background:black; border:1px solid #00ffcc; }
+</style>
 </head>
 <body>
 
-<h2>Live ECG Signal</h2>
-<p id="info">Waiting for data...</p>
+<h2>Live ECG</h2>
+<p id="info">Waiting...</p>
 <canvas id="ecg" width="900" height="300"></canvas>
 
 <script>
 const canvas = document.getElementById("ecg");
 const ctx = canvas.getContext("2d");
-
 let signal = [];
-let bpm = 0;
 
-function drawECG() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+function draw() {
+  ctx.clearRect(0,0,900,300);
   ctx.beginPath();
+
+  for (let i = 0; i < signal.length; i++) {
+    let x = i * (900 / signal.length);
+    let y = 300 - (signal[i] / 4095) * 280;
+    if (i === 0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  }
+
   ctx.strokeStyle = "#00ffcc";
-
-  signal.forEach((v, i) => {
-    const x = i * (canvas.width / signal.length);
-    const y = canvas.height - (v / 4095) * canvas.height;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-
   ctx.stroke();
 }
 
-function calculateBPM(data) {
+function calcBPM(data) {
   let peaks = 0;
-  const threshold = 2300;
-
+  const th = 2000;
   for (let i = 1; i < data.length - 1; i++) {
-    if (data[i] > threshold && data[i] > data[i - 1] && data[i] > data[i + 1]) {
+    if (data[i] > th && data[i] > data[i-1] && data[i] > data[i+1])
       peaks++;
-    }
   }
-
-  return Math.round(peaks * 6); // 10 ثواني → BPM
+  return peaks * 6;
 }
 
 async function update() {
   const res = await fetch("/api/pulse");
   const json = await res.json();
-
   signal = json.signal || [];
 
-  if (signal.length > 20) {
-    bpm = calculateBPM(signal);
-    drawECG();
-
-    document.getElementById("info").innerHTML =
-      `Device: ${json.device_id} | BPM: ${bpm} | Time: ${new Date(json.time).toLocaleTimeString()}`;
+  if (signal.length > 50) {
+    draw();
+    document.getElementById("info").innerText =
+      "BPM: " + calcBPM(signal);
   }
 }
 
 setInterval(update, 100);
+setInterval(draw, 33);
 </script>
 
 </body>

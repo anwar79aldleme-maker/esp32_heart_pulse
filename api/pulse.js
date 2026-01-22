@@ -1,37 +1,37 @@
-// api/pulse.js
+import { Pool } from "pg";
 
-export default function handler(req, res) {
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-  // تخزين مؤقت للرسم الحي
+export default async function handler(req, res) {
+
   global.signalStore = global.signalStore || [];
-  global.lastTime = global.lastTime || null;
-  global.deviceId = global.deviceId || null;
 
   if (req.method === "POST") {
-    const { device_id, signal, time } = req.body;
+    const { device_id, signal } = req.body;
 
     if (typeof signal === "number") {
-      global.signalStore.push(signal);
 
-      // حد أقصى للنقاط
+      // 1️⃣ تخزين للرسم
+      global.signalStore.push(signal);
       if (global.signalStore.length > 500) {
         global.signalStore.shift();
       }
 
-      global.lastTime = time;
-      global.deviceId = device_id;
+      // 2️⃣ تخزين دائم في Neon
+      await pool.query(
+        "INSERT INTO sensor_signal (device_id, signal) VALUES ($1, $2)",
+        [device_id, signal]
+      );
     }
 
-    return res.status(200).json({ ok: true });
+    return res.json({ ok: true });
   }
 
   if (req.method === "GET") {
-    return res.status(200).json({
-      device_id: global.deviceId,
-      time: global.lastTime,
-      signal: global.signalStore
-    });
+    return res.json({ signal: global.signalStore });
   }
 
-  return res.status(405).json({ error: "Method not allowed" });
+  res.status(405).end();
 }

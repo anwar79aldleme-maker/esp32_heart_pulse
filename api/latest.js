@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     `SELECT signal, created_at
      FROM sensor_data
      ORDER BY created_at DESC
-     
+     limit 150
   );
 
   // نعكس الترتيب للرسم الصحيح

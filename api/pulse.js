@@ -4,18 +4,15 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-export default async function handler(req, res) {
-  global.signalStore = global.signalStore || [];
+global.signalStore = global.signalStore || [];
 
+export default async function handler(req, res) {
   try {
     if (req.method === "POST") {
       const { device_id, signal, time } = req.body || {};
 
       if (!device_id || typeof signal !== "number" || !time) {
-        return res.status(400).json({
-          error: "Invalid payload",
-          received: req.body
-        });
+        return res.status(400).json({ error: "Invalid payload", received: req.body });
       }
 
       global.signalStore.push(signal);
@@ -37,8 +34,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error("API ERROR:", err);
-
-    // 🔥 هذا يضمن JSON دائمًا حتى لو فشل Neon
     return res.status(500).json({ error: "server error", message: err.message });
   }
 }

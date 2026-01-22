@@ -1,8 +1,4 @@
-import { Pool } from "@neondatabase/serverless";
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+let signalStore = [];
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -10,22 +6,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { device_id, signal } = req.body;
+    const { signal } = req.body;
 
-    if (!device_id || signal === undefined) {
-      return res.status(400).json({ error: "Missing data" });
+    if (!Array.isArray(signal)) {
+      return res.status(400).json({ error: "Invalid signal" });
     }
 
-    await pool.query(
-      `INSERT INTO sensor_data (device_id, signal)
-       VALUES ($1, $2)`,
-      [device_id, signal]
-    );
+    signalStore.push(...signal);
 
-    res.status(200).json({ status: "ok" });
+    // حماية الذاكرة فقط (اختياري)
+    if (signalStore.length > 5000) {
+      signalStore = signalStore.slice(-5000);
+    }
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Database error" });
+    res.status(200).json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 }

@@ -1,48 +1,58 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Heart Pulse Dashboard</title>
-<style>
-  canvas { border: 1px solid black; }
-</style>
+  <title>Heart Pulse Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-<h1>Heart Pulse Live</h1>
-<canvas id="pulseCanvas" width="800" height="200"></canvas>
+  <canvas id="pulseChart" width="800" height="400"></canvas>
+  <script>
+    const ctx = document.getElementById('pulseChart').getContext('2d');
+    const pulseData = {
+      labels: [],
+      datasets: [{
+        label: 'BPM',
+        data: [],
+        borderColor: 'red',
+        fill: false,
+        tension: 0.4
+      }]
+    };
+    const config = {
+      type: 'line',
+      data: pulseData,
+      options: {
+        animation: false,
+        responsive: false,
+        scales: { x: { display: false } }
+      }
+    };
+    const chart = new Chart(ctx, config);
 
-<script>
-const canvas = document.getElementById("pulseCanvas");
-const ctx = canvas.getContext("2d");
-let signal = [];
+    async function update() {
+      try {
+        const res = await fetch('/api/pulse');
+        const data = await res.json();
 
-async function update() {
-  try {
-    const res = await fetch("/api/pulse");
-    const data = await res.json();
-    signal = data.signal || [];
-    draw();
-  } catch (e) {
-    console.error("Failed to fetch:", e);
-  }
-}
+        if(data.signal && data.signal.length > 0){
+          data.signal.forEach(p => {
+            pulseData.labels.push(p.time);
+            pulseData.datasets[0].data.push(p.bpm);
+          });
+          // حافظ على آخر 100 نقطة
+          if(pulseData.labels.length > 100){
+            pulseData.labels = pulseData.labels.slice(-100);
+            pulseData.datasets[0].data = pulseData.datasets[0].data.slice(-100);
+          }
+          chart.update();
+        }
+      } catch(err){
+        console.error(err);
+      }
+      setTimeout(update, 100); // تحديث كل 100ms
+    }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.beginPath();
-  const len = signal.length;
-  for (let i = 0; i < len; i++) {
-    const x = (i / 600) * canvas.width;
-    const y = canvas.height - (signal[i] / 4095) * canvas.height;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.strokeStyle = "red";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-}
-
-setInterval(update, 100);  // تحديث كل 100ms
-</script>
+    update();
+  </script>
 </body>
 </html>

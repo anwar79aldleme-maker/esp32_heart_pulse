@@ -1,35 +1,32 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Heart Pulse Dashboard</title>
+  <title>Heart Signal</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
-<h2>Heart Pulse Signal</h2>
-<h3 id="bpm">BPM: --</h3>
-
-<canvas id="chart" width="400" height="200"></canvas>
+<h2>BPM: <span id="bpm">--</span></h2>
+<canvas id="chart"></canvas>
 
 <script>
-const ctx = document.getElementById("chart").getContext("2d");
+let data = [];
+let labels = [];
+let lastPeak = 0;
+let bpm = 0;
 
-const data = {
-  labels: [],
-  datasets: [{
-    label: "Signal",
-    data: [],
-    borderWidth: 2,
-    fill: false,
-    tension: 0.3
-  }]
-};
-
+const ctx = document.getElementById("chart");
 const chart = new Chart(ctx, {
   type: "line",
-  data: data,
+  data: {
+    labels,
+    datasets: [{
+      label: "Signal",
+      data,
+      borderWidth: 2,
+      pointRadius: 0
+    }]
+  },
   options: {
     animation: false,
     scales: {
@@ -38,58 +35,31 @@ const chart = new Chart(ctx, {
   }
 });
 
-// =======================
-// BPM from Signal (Peaks)
-// =======================
-function calculateBPM(signal, fs = 50) {
-  const threshold = 2600;   // عدّلها حسب الإشارة
-  let peaks = [];
-
-  for (let i = 1; i < signal.length - 1; i++) {
-    if (
-      signal[i] > threshold &&
-      signal[i] > signal[i - 1] &&
-      signal[i] > signal[i + 1]
-    ) {
-      peaks.push(i);
-    }
-  }
-
-  if (peaks.length < 2) return "--";
-
-  let intervals = [];
-  for (let i = 1; i < peaks.length; i++) {
-    intervals.push((peaks[i] - peaks[i - 1]) / fs);
-  }
-
-  const avgInterval =
-    intervals.reduce((a, b) => a + b, 0) / intervals.length;
-
-  return Math.round(60 / avgInterval);
-}
-
-// =======================
-// Fetch data
-// =======================
 async function fetchData() {
   const res = await fetch("/api/latest");
-  const samples = await res.json();
+  const json = await res.json();
 
-  data.labels = [];
-  data.datasets[0].data = [];
+  json.signal.forEach(v => {
+    data.push(v);
+    labels.push("");
 
-  samples.forEach(s => {
-    data.labels.push("");
-    data.datasets[0].data.push(s.signal);
+    // Peak detection (بسيطة لكنها فعالة)
+    if (v > 2500 && Date.now() - lastPeak > 400) {
+      bpm = Math.round(60000 / (Date.now() - lastPeak));
+      lastPeak = Date.now();
+      document.getElementById("bpm").innerText = bpm;
+    }
+
+    if (data.length > 300) {
+      data.shift();
+      labels.shift();
+    }
   });
 
   chart.update();
-
-  const bpm = calculateBPM(data.datasets[0].data);
-  document.getElementById("bpm").innerText = "BPM: " + bpm;
 }
 
-setInterval(fetchData, 1000);
+setInterval(fetchData, 100);
 </script>
 
 </body>

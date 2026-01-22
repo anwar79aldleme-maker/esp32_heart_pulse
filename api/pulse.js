@@ -1,36 +1,36 @@
-import { Pool } from "pg";
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+import { pool } from "../lib/db.js";
 
 export default async function handler(req, res) {
-  global.signalStore = global.signalStore || [];
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "POST only" });
+  }
 
-  if (req.method === "POST") {
+  try {
     const { device_id, signal, time } = req.body;
 
-    if (typeof signal === "number") {
-      // Buffer للرسم
-      global.signalStore.push(signal);
-      if (global.signalStore.length > 600)
-        global.signalStore.shift();
-
-      // تخزين دائم
-      await pool.query(
-        "INSERT INTO sensor_signal (device_id, signal, time) VALUES ($1,$2,$3)",
-        [device_id, signal, time]
-      );
+    if (!device_id || signal === undefined || !time) {
+      return res.status(400).json({
+        error: "Missing device_id or signal or time"
+      });
     }
 
-    return res.json({ ok: true });
-  }
+    await pool.query(
+      `
+      INSERT INTO sensor_signal (device_id, signal, time)
+      VALUES ($1, $2, $3)
+      `,
+      [device_id, signal, time]
+    );
 
-  if (req.method === "GET") {
-    return res.json({
-      signal: global.signalStore,
+    res.status(200).json({ ok: true });
+
+  } catch (err) {
+    console.error("DB ERROR:", err);
+
+    // 🔥 مهم جداً
+    res.status(500).json({
+      error: "server error",
+      details: err.message
     });
   }
-
-  res.status(405).end();
 }

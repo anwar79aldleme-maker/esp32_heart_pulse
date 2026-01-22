@@ -1,34 +1,36 @@
-// api/pulse.js
+import { Client } from "@neondatabase/serverless";
+
+const client = new Client({
+  connectionString: process.env.NEON_DB_URL
+});
+
+// لتخزين النبضات مؤقتًا للرسوم
+global.signalStore = global.signalStore || [];
+
 export default async function handler(req, res) {
+  if(req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
+    const { device_id, bpm, time } = req.body;
 
-    // التحقق من جسم الرسالة
-    const { device_id, signal, time } = req.body || {};
+    // تأكد من وجود القيم
+    if(!device_id || bpm === undefined || !time) return res.status(400).json({ error: "Invalid data" });
 
-    if (!device_id || typeof signal !== "number" || !time) {
-      console.log("Received invalid payload:", req.body);
-      return res.status(400).json({ 
-        error: "Invalid payload", 
-        received: req.body 
-      });
-    }
+    // إضافة مؤقتًا للرسوم
+    global.signalStore.push({ device_id, bpm, time });
+    if(global.signalStore.length > 1000) global.signalStore.shift(); // حافظ على آخر 1000 قيمة
 
-    // تسجيل البيانات في Logs فقط (اختبار بدون قاعدة بيانات)
-    console.log(`Device: ${device_id}, Signal: ${signal}, Time: ${time}`);
+    // إدخال في NeonDB
+    await client.connect();
+    await client.query(
+      `INSERT INTO sensor_data(device_id, bpm, time) VALUES($1,$2,$3)`,
+      [device_id, bpm, time]
+    );
+    await client.end();
 
-    // لو تريد لاحقاً تخزينها في NeonDB:
-    // import { Pool } from 'pg';
-    // const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    // await pool.query('INSERT INTO sensor_data(device_id, signal, time) VALUES($1,$2,$3)', [device_id, signal, time]);
-
-    // الرد دائماً JSON صالح
-    return res.status(200).json({ success: true, device_id, signal, time });
-
-  } catch (err) {
-    console.error("Function error:", err);
-    return res.status(500).json({ error: "Server error", details: err.message });
+    res.status(200).json({ success: true, bpm });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
   }
 }

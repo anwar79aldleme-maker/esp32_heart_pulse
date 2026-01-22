@@ -1,7 +1,5 @@
-// latest.js - Vercel API endpoint
-// GET: return all pulse data (no limit)
-
-global.signalStore = global.signalStore || [];
+// latest.js - Vercel
+globalThis.signalStore = globalThis.signalStore || [];
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -9,8 +7,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // إرجاع كل البيانات بدون أي LIMIT
-    res.status(200).json({ signal: global.signalStore });
+    console.log("Returning all signalStore data, count:", globalThis.signalStore.length);
+    res.status(200).json({ signal: globalThis.signalStore });
   } catch (error) {
     console.error("Error in latest.js:", error);
     res.status(500).json({ error: "Server error" });

@@ -2,59 +2,55 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Real Signal Monitor</title>
+  <title>Real Heart Signal</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
 <body>
-<h2>Signal</h2>
+<h2>Heart Signal (PPG)</h2>
 <canvas id="chart"></canvas>
 
 <script>
-const fs = 200;
-const MAX = 200;
+const fs = 200;      // نفس ESP
+const MAX = 200;      // عدد العينات المعروضة
 let buffer = Array(MAX).fill(0);
 let incoming = [];
 
-const chart = new Chart(
-  document.getElementById("chart"),
-  {
-    type: "line",
-    data: {
-      labels: Array(MAX).fill(""),
-      datasets: [{
-        data: buffer,
-        borderColor: "#1f77b4",
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0
-      }]
-    },
-    options: {
-      animation: false,
-      scales: {
-        x: { display: false },
-        y: { min: 0, max: 4095 }
-      }
+const chart = new Chart(document.getElementById("chart"), {
+  type: "line",
+  data: {
+    labels: Array(MAX).fill(""),
+    datasets: [{
+      data: buffer,
+      borderColor: "#ff0000",
+      borderWidth: 2,
+      pointRadius: 0,
+      tension: 0
+    }]
+  },
+  options: {
+    animation: false,
+    scales: {
+      x: { display: false },
+      y: { min: 0, max: 4095 }
     }
   }
-);
+});
 
-// fetch buffer
+// جلب buffer من API
 async function fetchBuffer() {
   try {
     const res = await fetch("/api/latest?device_id=max1");
     if (!res.ok) return;
     incoming = await res.json();
-  } catch (e) {
+  } catch(e) {
     console.log("Fetch error");
   }
 }
 
-
+// fetch كل ثانية
 setInterval(fetchBuffer, 1000);
 
-// draw REAL TIME
+// تحديث الرسم حقيقي
 setInterval(() => {
   if (incoming.length > 0) {
     buffer.push(incoming.shift());

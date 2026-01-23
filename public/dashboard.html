@@ -2,62 +2,64 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Real Heart Signal</title>
+  <title>Heart Pulse Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-<h2>Heart Signal (PPG)</h2>
-<canvas id="chart"></canvas>
+<h2>Heart Signal</h2>
+<h3 id="bpm">BPM: --</h3>
+<canvas id="chart" width="600" height="300"></canvas>
 
 <script>
-const fs = 200;      // نفس ESP
-const MAX = 200;      // عدد العينات المعروضة
-let buffer = Array(MAX).fill(0);
-let incoming = [];
+const ctx = document.getElementById("chart").getContext("2d");
 
-const chart = new Chart(document.getElementById("chart"), {
+const data = {
+  labels: [],
+  datasets: [{
+    label: "Signal",
+    data: [],
+    borderColor: "red",
+    fill: false,
+    tension: 0.2,
+    pointRadius: 0
+  }]
+};
+
+const chart = new Chart(ctx, {
   type: "line",
-  data: {
-    labels: Array(MAX).fill(""),
-    datasets: [{
-      data: buffer,
-      borderColor: "#ff0000",
-      borderWidth: 2,
-      pointRadius: 0,
-      tension: 0
-    }]
-  },
-  options: {
-    animation: false,
-    scales: {
-      x: { display: false },
-      y: { min: 0, max: 4095 }
-    }
-  }
+  data: data,
+  options: { animation: false, scales: { y: { min: 0, max: 4095 } } }
 });
 
-// جلب buffer من API
-async function fetchBuffer() {
+function calculateBPM(signal, fs=50){
+  const threshold = 2600;
+  let peaks = [];
+  for(let i=1;i<signal.length-1;i++){
+    if(signal[i]>threshold && signal[i]>signal[i-1] && signal[i]>signal[i+1]) peaks.push(i);
+  }
+  if(peaks.length<2) return "--";
+  let intervals = [];
+  for(let i=1;i<peaks.length;i++) intervals.push((peaks[i]-peaks[i-1])/fs);
+  const avgInterval = intervals.reduce((a,b)=>a+b,0)/intervals.length;
+  return Math.round(60/avgInterval);
+}
+
+async function fetchData(){
   try {
     const res = await fetch("/api/latest?device_id=max1");
-    if (!res.ok) return;
-    incoming = await res.json();
-  } catch(e) {
-    console.log("Fetch error");
+    if(!res.ok) return;
+    const samples = await res.json();
+    data.labels = samples.map(()=> "");
+    data.datasets[0].data = samples.map(s=> s.signal);
+    chart.update();
+    const bpm = calculateBPM(data.datasets[0].data);
+    document.getElementById("bpm").innerText = "BPM: "+bpm;
+  } catch(e){
+    console.log("Fetch error", e);
   }
 }
 
-// fetch كل ثانية
-setInterval(fetchBuffer, 1000);
-
-// تحديث الرسم حقيقي
-setInterval(() => {
-  if (incoming.length > 0) {
-    buffer.push(incoming.shift());
-    buffer.shift();
-    chart.update("none");
-  }
-}, 1000 / fs);
+setInterval(fetchData,1000);
 </script>
 </body>
 </html>

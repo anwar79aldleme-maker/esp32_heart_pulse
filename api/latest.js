@@ -6,19 +6,26 @@ const pool = new Pool({
 
 export default async function handler(req, res) {
   try {
+    const { device_id = "max1" } = req.query;
+
     const result = await pool.query(
-      `SELECT signal, created_at
-       FROM sensor_data
-       ORDER BY created_at ASC`
+      `
+      SELECT signal
+      FROM sensor_data
+      WHERE device_id = $1
+      ORDER BY created_at DESC
+      LIMIT 200
+      `,
+      [device_id]
     );
 
-    res.status(200).json(result.rows);
+    // نعكس الترتيب ليكون قديم → جديد (للرسم)
+    const data = result.rows.reverse();
 
-  } catch (error) {
-    console.error("LATEST API ERROR:", error);
-    res.status(500).json({
-      error: "Database error",
-      details: error.message
-    });
+    res.status(200).json(data);
+
+  } catch (err) {
+    console.error("API /latest error:", err);
+    res.status(500).json({ error: "Database error" });
   }
 }

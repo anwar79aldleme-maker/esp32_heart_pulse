@@ -42,9 +42,15 @@ const chart = new Chart(
 
 // fetch buffer
 async function fetchBuffer() {
-  const res = await fetch("/api/latest");
-  incoming = await res.json();
+  try {
+    const res = await fetch("/api/latest?device_id=max1");
+    if (!res.ok) return;
+    incoming = await res.json();
+  } catch (e) {
+    console.log("Fetch error");
+  }
 }
+
 
 setInterval(fetchBuffer, 1000);
 

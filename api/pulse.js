@@ -9,8 +9,7 @@ export default async function handler(req, res) {
 
   try {
     const { device_id, signal } = req.body;
-    if (!device_id || signal === undefined)
-      return res.status(400).json({ error: "Missing data" });
+    if (!device_id || signal === undefined) return res.status(400).json({ error: "Missing data" });
 
     await pool.query(
       `INSERT INTO sensor_data (device_id, signal) VALUES ($1, $2)`,
@@ -19,7 +18,7 @@ export default async function handler(req, res) {
 
     res.status(200).json({ status: "ok" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Database error" });
+    console.error("pulse error:", err);
+    res.status(500).json({ error: "Database error", details: err.message });
   }
 }

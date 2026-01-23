@@ -12,20 +12,22 @@ export default async function handler(req, res) {
   try {
     const { device_id, signal } = req.body;
 
-    if (!device_id || signal === undefined) {
-      return res.status(400).json({ error: "Missing data" });
+    if (!device_id || typeof signal !== "number") {
+      return res.status(400).json({ error: "Invalid data" });
     }
 
     await pool.query(
-      `INSERT INTO sensor_data (device_id, signal)
-       VALUES ($1, $2)`,
-      [device_id, signal]
+      `
+      INSERT INTO sensor_data (device_id, signal, created_at)
+      VALUES ($1, $2, NOW())
+      `,
+      [device_id, Math.round(signal)]
     );
 
     res.status(200).json({ status: "ok" });
 
   } catch (err) {
-    console.error(err);
+    console.error("API /pulse error:", err);
     res.status(500).json({ error: "Database error" });
   }
 }

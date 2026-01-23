@@ -1,58 +1,96 @@
+
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Heart Pulse Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <canvas id="pulseChart" width="800" height="400"></canvas>
-  <script>
-    const ctx = document.getElementById('pulseChart').getContext('2d');
-    const pulseData = {
-      labels: [],
-      datasets: [{
-        label: 'BPM',
-        data: [],
-        borderColor: 'red',
-        fill: false,
-        tension: 0.4
-      }]
-    };
-    const config = {
-      type: 'line',
-      data: pulseData,
-      options: {
-        animation: false,
-        responsive: false,
-        scales: { x: { display: false } }
-      }
-    };
-    const chart = new Chart(ctx, config);
 
-    async function update() {
-      try {
-        const res = await fetch('/api/pulse');
-        const data = await res.json();
+<h2>Heart Pulse Signal</h2>
+<h3 id="bpm">BPM: --</h3>
 
-        if(data.signal && data.signal.length > 0){
-          data.signal.forEach(p => {
-            pulseData.labels.push(p.time);
-            pulseData.datasets[0].data.push(p.bpm);
-          });
-          // حافظ على آخر 100 نقطة
-          if(pulseData.labels.length > 100){
-            pulseData.labels = pulseData.labels.slice(-100);
-            pulseData.datasets[0].data = pulseData.datasets[0].data.slice(-100);
-          }
-          chart.update();
-        }
-      } catch(err){
-        console.error(err);
-      }
-      setTimeout(update, 100); // تحديث كل 100ms
+<canvas id="chart" width="400" height="200"></canvas>
+
+<script>
+const ctx = document.getElementById("chart").getContext("2d");
+
+const data = {
+  labels: [],
+  datasets: [{
+    label: "Signal",
+    data: [],
+    borderWidth: 2,
+    fill: false,
+    tension: 0.3
+  }]
+};
+
+const chart = new Chart(ctx, {
+  type: "line",
+  data: data,
+  options: {
+    animation: false,
+    scales: {
+      y: { min: 0, max: 4095 }
     }
+  }
+});
 
-    update();
-  </script>
+// =======================
+// BPM from Signal (Peaks)
+// =======================
+function calculateBPM(signal, fs = 50) {
+  const threshold = 2600;   // عدّلها حسب الإشارة
+  let peaks = [];
+
+  for (let i = 1; i < signal.length - 1; i++) {
+    if (
+      signal[i] > threshold &&
+      signal[i] > signal[i - 1] &&
+      signal[i] > signal[i + 1]
+    ) {
+      peaks.push(i);
+    }
+  }
+
+  if (peaks.length < 2) return "--";
+
+  let intervals = [];
+  for (let i = 1; i < peaks.length; i++) {
+    intervals.push((peaks[i] - peaks[i - 1]) / fs);
+  }
+
+  const avgInterval =
+    intervals.reduce((a, b) => a + b, 0) / intervals.length;
+
+  return Math.round(60 / avgInterval);
+}
+
+// =======================
+// Fetch data
+// =======================
+async function fetchData() {
+  const res = await fetch("/api/latest");
+  const samples = await res.json();
+
+  data.labels = [];
+  data.datasets[0].data = [];
+
+  samples.forEach(s => {
+    data.labels.push("");
+    data.datasets[0].data.push(s.signal);
+  });
+
+  chart.update();
+
+  const bpm = calculateBPM(data.datasets[0].data);
+  document.getElementById("bpm").innerText = "BPM: " + bpm;
+}
+
+setInterval(fetchData, 1000);
+</script>
+
 </body>
 </html>

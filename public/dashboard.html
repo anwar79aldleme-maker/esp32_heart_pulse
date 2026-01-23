@@ -1,32 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Heart Pulse Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta charset="UTF-8">
+<title>Signal Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <style>
-    body {
-      background: #0b0b0b;
-      color: #00ffcc;
-      font-family: Arial;
-      text-align: center;
-    }
-    canvas {
-      max-width: 900px;
-      margin: auto;
-    }
-  </style>
+<style>
+  body {
+    background: #ffffff;
+    font-family: Arial, sans-serif;
+    margin: 30px;
+  }
+
+  h2 {
+    margin-bottom: 5px;
+  }
+
+  h3 {
+    margin-top: 0;
+    color: #444;
+  }
+
+  canvas {
+    max-width: 900px;
+    max-height: 400px;
+  }
+</style>
 </head>
+
 <body>
 
-<h2>Heart Pulse Signal</h2>
+<h2>Signal</h2>
 <h3 id="bpm">BPM: --</h3>
 
-<canvas id="chart" height="300"></canvas>
+<canvas id="chart"></canvas>
 
 <script>
-const MAX_POINTS = 200;   // نفس SAMPLE_COUNT
+const MAX_POINTS = 200;
 const ctx = document.getElementById("chart").getContext("2d");
 
 const chart = new Chart(ctx, {
@@ -34,33 +44,47 @@ const chart = new Chart(ctx, {
   data: {
     labels: Array(MAX_POINTS).fill(""),
     datasets: [{
-      label: "PPG Signal",
+      label: "Signal",
       data: Array(MAX_POINTS).fill(0),
-      borderWidth: 2,
-      borderColor: "#00ffcc",
+      borderColor: "#1f77b4",   // أزرق مثل Excel
+      borderWidth: 2.5,
       pointRadius: 0,
-      tension: 0.35
+      tension: 0.25,           // تموّج مشابه للصورة
+      fill: false
     }]
   },
   options: {
     animation: false,
     responsive: true,
+    plugins: {
+      legend: { display: false }
+    },
     scales: {
-      x: { display: false },
+      x: {
+        display: true,
+        grid: {
+          color: "#e0e0e0"
+        }
+      },
       y: {
         min: 0,
-        max: 4095,
-        grid: { color: "#222" }
+        max: 3000,
+        ticks: {
+          stepSize: 500
+        },
+        grid: {
+          color: "#e0e0e0"
+        }
       }
     }
   }
 });
 
 // =======================
-// BPM from Signal (Peaks)
+// BPM (اختياري)
 // =======================
 function calculateBPM(signal, fs = 50) {
-  const threshold = 2600;
+  const threshold = 2200;
   let peaks = [];
 
   for (let i = 1; i < signal.length - 1; i++) {
@@ -87,10 +111,10 @@ function calculateBPM(signal, fs = 50) {
 }
 
 // =======================
-// Fetch Latest Signal
+// Fetch data
 // =======================
 async function fetchData() {
-  const res = await fetch("/api/latest");
+  const res = await fetch("/api/latest?device_id=max1");
   const samples = await res.json();
 
   samples.forEach(s => {
@@ -104,7 +128,7 @@ async function fetchData() {
   document.getElementById("bpm").innerText = "BPM: " + bpm;
 }
 
-setInterval(fetchData, 200); // تحديث ناعم
+setInterval(fetchData, 200);
 </script>
 
 </body>

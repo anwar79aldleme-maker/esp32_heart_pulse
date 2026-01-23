@@ -1,39 +1,57 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Heart Pulse Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      background: #0b0b0b;
+      color: #00ffcc;
+      font-family: Arial;
+      text-align: center;
+    }
+    canvas {
+      max-width: 900px;
+      margin: auto;
+    }
+  </style>
 </head>
 <body>
 
 <h2>Heart Pulse Signal</h2>
 <h3 id="bpm">BPM: --</h3>
 
-<canvas id="chart" width="400" height="200"></canvas>
+<canvas id="chart" height="300"></canvas>
 
 <script>
+const MAX_POINTS = 200;   // نفس SAMPLE_COUNT
 const ctx = document.getElementById("chart").getContext("2d");
-
-const data = {
-  labels: [],
-  datasets: [{
-    label: "Signal",
-    data: [],
-    borderWidth: 2,
-    fill: false,
-    tension: 0.3
-  }]
-};
 
 const chart = new Chart(ctx, {
   type: "line",
-  data: data,
+  data: {
+    labels: Array(MAX_POINTS).fill(""),
+    datasets: [{
+      label: "PPG Signal",
+      data: Array(MAX_POINTS).fill(0),
+      borderWidth: 2,
+      borderColor: "#00ffcc",
+      pointRadius: 0,
+      tension: 0.35
+    }]
+  },
   options: {
     animation: false,
+    responsive: true,
     scales: {
-      y: { min: 0, max: 4095 }
+      x: { display: false },
+      y: {
+        min: 0,
+        max: 4095,
+        grid: { color: "#222" }
+      }
     }
   }
 });
@@ -42,7 +60,7 @@ const chart = new Chart(ctx, {
 // BPM from Signal (Peaks)
 // =======================
 function calculateBPM(signal, fs = 50) {
-  const threshold = 2600;   // عدّلها حسب الإشارة
+  const threshold = 2600;
   let peaks = [];
 
   for (let i = 1; i < signal.length - 1; i++) {
@@ -62,34 +80,31 @@ function calculateBPM(signal, fs = 50) {
     intervals.push((peaks[i] - peaks[i - 1]) / fs);
   }
 
-  const avgInterval =
+  const avg =
     intervals.reduce((a, b) => a + b, 0) / intervals.length;
 
-  return Math.round(60 / avgInterval);
+  return Math.round(60 / avg);
 }
 
 // =======================
-// Fetch data
+// Fetch Latest Signal
 // =======================
 async function fetchData() {
   const res = await fetch("/api/latest");
   const samples = await res.json();
 
-  data.labels = [];
-  data.datasets[0].data = [];
-
   samples.forEach(s => {
-    data.labels.push("");
-    data.datasets[0].data.push(s.signal);
+    chart.data.datasets[0].data.push(s.signal);
+    chart.data.datasets[0].data.shift();
   });
 
-  chart.update();
+  chart.update("none");
 
-  const bpm = calculateBPM(data.datasets[0].data);
+  const bpm = calculateBPM(chart.data.datasets[0].data);
   document.getElementById("bpm").innerText = "BPM: " + bpm;
 }
 
-setInterval(fetchData, 1000);
+setInterval(fetchData, 200); // تحديث ناعم
 </script>
 
 </body>

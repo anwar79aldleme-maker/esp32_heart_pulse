@@ -1,135 +1,61 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Signal Monitor</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-  body {
-    background: #ffffff;
-    font-family: Arial, sans-serif;
-    margin: 30px;
-  }
-
-  h2 {
-    margin-bottom: 5px;
-  }
-
-  h3 {
-    margin-top: 0;
-    color: #444;
-  }
-
-  canvas {
-    max-width: 900px;
-    max-height: 400px;
-  }
-</style>
+  <meta charset="UTF-8">
+  <title>Real Signal Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
-
 <h2>Signal</h2>
-<h3 id="bpm">BPM: --</h3>
-
 <canvas id="chart"></canvas>
 
 <script>
-const MAX_POINTS = 200;
-const ctx = document.getElementById("chart").getContext("2d");
+const fs = 200;
+const MAX = 200;
+let buffer = Array(MAX).fill(0);
+let incoming = [];
 
-const chart = new Chart(ctx, {
-  type: "line",
-  data: {
-    labels: Array(MAX_POINTS).fill(""),
-    datasets: [{
-      label: "Signal",
-      data: Array(MAX_POINTS).fill(0),
-      borderColor: "#1f77b4",   // أزرق مثل Excel
-      borderWidth: 2.5,
-      pointRadius: 0,
-      tension: 0.25,           // تموّج مشابه للصورة
-      fill: false
-    }]
-  },
-  options: {
-    animation: false,
-    responsive: true,
-    plugins: {
-      legend: { display: false }
+const chart = new Chart(
+  document.getElementById("chart"),
+  {
+    type: "line",
+    data: {
+      labels: Array(MAX).fill(""),
+      datasets: [{
+        data: buffer,
+        borderColor: "#1f77b4",
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0
+      }]
     },
-    scales: {
-      x: {
-        display: true,
-        grid: {
-          color: "#e0e0e0"
-        }
-      },
-      y: {
-        min: 0,
-        max: 3000,
-        ticks: {
-          stepSize: 500
-        },
-        grid: {
-          color: "#e0e0e0"
-        }
+    options: {
+      animation: false,
+      scales: {
+        x: { display: false },
+        y: { min: 0, max: 4095 }
       }
     }
   }
-});
+);
 
-// =======================
-// BPM (اختياري)
-// =======================
-function calculateBPM(signal, fs = 50) {
-  const threshold = 2200;
-  let peaks = [];
-
-  for (let i = 1; i < signal.length - 1; i++) {
-    if (
-      signal[i] > threshold &&
-      signal[i] > signal[i - 1] &&
-      signal[i] > signal[i + 1]
-    ) {
-      peaks.push(i);
-    }
-  }
-
-  if (peaks.length < 2) return "--";
-
-  let intervals = [];
-  for (let i = 1; i < peaks.length; i++) {
-    intervals.push((peaks[i] - peaks[i - 1]) / fs);
-  }
-
-  const avg =
-    intervals.reduce((a, b) => a + b, 0) / intervals.length;
-
-  return Math.round(60 / avg);
+// fetch buffer
+async function fetchBuffer() {
+  const res = await fetch("/api/latest");
+  incoming = await res.json();
 }
 
-// =======================
-// Fetch data
-// =======================
-async function fetchData() {
-  const res = await fetch("/api/latest?device_id=max1");
-  const samples = await res.json();
+setInterval(fetchBuffer, 1000);
 
-  samples.forEach(s => {
-    chart.data.datasets[0].data.push(s.signal);
-    chart.data.datasets[0].data.shift();
-  });
-
-  chart.update("none");
-
-  const bpm = calculateBPM(chart.data.datasets[0].data);
-  document.getElementById("bpm").innerText = "BPM: " + bpm;
-}
-
-setInterval(fetchData, 200);
+// draw REAL TIME
+setInterval(() => {
+  if (incoming.length > 0) {
+    buffer.push(incoming.shift());
+    buffer.shift();
+    chart.update("none");
+  }
+}, 1000 / fs);
 </script>
-
 </body>
 </html>

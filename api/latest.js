@@ -1,13 +1,20 @@
-import { kv } from "@vercel/kv";
+import { Pool } from "@neondatabase/serverless";
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 export default async function handler(req, res) {
   try {
-    const device_id = req.query.device_id || "max1";
+    const result = await pool.query(
+      `SELECT signal, created_at
+       FROM sensor_data
+       ORDER BY created_at ASC`
+    );
 
-    const data = await kv.get(`signal:${device_id}`);
-    res.status(200).json(data || []);
-  } catch (err) {
-    console.error("latest error:", err);
-    res.status(500).json([]);
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("LATEST API ERROR:", error);
+    res.status(500).json({ error: "Database error", details: error.message });
   }
 }

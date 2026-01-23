@@ -9,12 +9,15 @@ export default async function handler(req, res) {
     const result = await pool.query(
       `SELECT signal, created_at
        FROM sensor_data
-       ORDER BY created_at ASC`
+       WHERE device_id = $1
+       ORDER BY created_at ASC
+       LIMIT 200`,
+      [req.query.device_id || "max1"]
     );
 
     res.status(200).json(result.rows);
-  } catch (error) {
-    console.error("LATEST API ERROR:", error);
-    res.status(500).json({ error: "Database error", details: error.message });
+  } catch (err) {
+    console.error("latest error:", err);
+    res.status(500).json({ error: "Database error", details: err.message });
   }
 }

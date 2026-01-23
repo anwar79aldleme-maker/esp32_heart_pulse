@@ -6,7 +6,7 @@ const pool = new Pool({
 
 export default async function handler(req, res) {
   try {
-    const { device_id = "max1" } = req.query;
+    const device_id = req.query.device_id || "max1";
 
     const result = await pool.query(
       `
@@ -19,13 +19,16 @@ export default async function handler(req, res) {
       [device_id]
     );
 
-    // نعكس الترتيب ليكون قديم → جديد (للرسم)
+    // نعيد الترتيب من الأقدم للأحدث للرسم
     const data = result.rows.reverse();
 
     res.status(200).json(data);
 
-  } catch (err) {
-    console.error("API /latest error:", err);
-    res.status(500).json({ error: "Database error" });
+  } catch (error) {
+    console.error("LATEST API ERROR:", error);
+    res.status(500).json({
+      error: "Database error",
+      details: error.message
+    });
   }
 }

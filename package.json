@@ -1,12 +1,6 @@
-
 {
-  "name": "heart-pulse-api",
-  "version": "1.0.0",
-  "type": "module",
+  "name": "heart-pulse-neon",
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2"
-  },
-  "engines": {
-    "node": "24.x"
+    "@neondatabase/serverless": "^0.6.0"
   }
 }

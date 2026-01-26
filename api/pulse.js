@@ -1,26 +1,27 @@
-import { sql } from "./db";
+import { Client } from "@neondatabase/serverless";
+
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
+});
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
+
+  const { device_id, signal, bpm } = req.body;
+
+  if (!device_id || signal === undefined || bpm === undefined)
+    return res.status(400).json({ error: "Missing parameters" });
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { device_id, bpm, signals } = body;
-
-    if (!device_id || !Array.isArray(signals) || signals.length === 0)
-      return res.status(400).json({ error: "Invalid data format" });
-
-    // Insert each signal as a separate row
-    for (let signal of signals) {
-      await sql`
-        INSERT INTO pulse_data (device_id, signal, bpm)
-        VALUES (${device_id}, ${signal}, ${bpm})
-      `;
-    }
-
-    res.status(200).json({ status: "ok" });
+    await client.connect();
+    await client.query(
+      `INSERT INTO pulse_data (device_id, signal, bpm) VALUES ($1, $2, $3)`,
+      [device_id, signal, bpm]
+    );
+    await client.end();
+    return res.status(200).json({ message: "Data saved" });
   } catch (err) {
-    console.error("Error in /pulse:", err);
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    return res.status(500).json({ error: "Server Error" });
   }
 }

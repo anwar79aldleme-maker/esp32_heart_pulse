@@ -2,18 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>ESP32 Heart Monitor</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-  body { background: black; color: white; font-family: sans-serif; text-align: center; }
-  canvas { border: 1px solid white; margin-top: 20px; }
-  #bpm { font-size: 2em; color: lime; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 Heart Pulse Dashboard</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<h1>ESP32 Heart Monitor</h1>
-<canvas id="pulseChart" width="800" height="200"></canvas>
-<div>BPM: <span id="bpm">0</span></div>
+<h1>Heart Pulse Dashboard</h1>
+<div>
+  Device ID: <input type="text" id="deviceId" value="esp32_1">
+  <button onclick="start()">Start</button>
+</div>
+<div>BPM: <span id="bpmVal">0</span></div>
+<canvas id="oscilloscope" width="800" height="200"></canvas>
+
 <script src="dashboard.js"></script>
 </body>
 </html>

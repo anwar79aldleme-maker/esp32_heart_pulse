@@ -1,0 +1,48 @@
+
+<canvas id="pulseChart" width="600" height="200"></canvas>
+<div>BPM: <span id="bpm">0</span></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const DEVICE_ID = "esp32_1";
+const MAX_POINTS = 300;
+
+const ctx = document.getElementById("pulseChart").getContext("2d");
+const chart = new Chart(ctx, {
+  type: "line",
+  data: {
+    labels: Array(MAX_POINTS).fill(""),
+    datasets: [{
+      data: Array(MAX_POINTS).fill(0),
+      borderWidth: 2,
+      tension: 0.4,
+      pointRadius: 0
+    }]
+  },
+  options: {
+    animation: false,
+    scales: { y: { min: 300, max: 700 } }
+  }
+});
+
+async function stream() {
+  try {
+    const res = await fetch(`/api/getData?device_id=${DEVICE_ID}`);
+    const data = await res.json();
+
+    if (!data || data.length < 2) return;
+
+    data.slice(-10).forEach(p => {
+      chart.data.datasets[0].data.shift();
+      chart.data.datasets[0].data.push(p.signal);
+    });
+
+    chart.update("none");
+    document.getElementById("bpm").innerText = data[data.length -1].bpm;
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+setInterval(stream, 80);
+</script>

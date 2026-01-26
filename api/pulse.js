@@ -1,4 +1,4 @@
-import { sql } from './db'; // تأكد من إعداد Neon connection
+import { sql } from './db';
 
 export default async function handler(req, res) {
   try {
@@ -11,7 +11,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Invalid data" });
     }
 
-    // إدخال كل عنصر في قاعدة البيانات
     for (const s of signals) {
       await sql`
         INSERT INTO pulse_data (device_id, signal, bpm)
@@ -21,7 +20,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ status: "ok", received: signals.length });
   } catch (error) {
-    console.error("API Error:", error);
+    console.error("API Error:", error.message);
     return res.status(500).json({ error: "Server error", details: error.message });
   }
 }

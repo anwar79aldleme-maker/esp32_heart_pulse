@@ -2,19 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ESP32 Heart Pulse Dashboard</title>
-<link rel="stylesheet" href="style.css">
+<style>
+  canvas { border:1px solid black; }
+  #bpm { font-size:24px; margin-top:10px; }
+</style>
 </head>
 <body>
-<h1>Heart Pulse Dashboard</h1>
-<div>
-  Device ID: <input type="text" id="deviceId" value="esp32_1">
-  <button onclick="start()">Start</button>
-</div>
-<div>BPM: <span id="bpmVal">0</span></div>
-<canvas id="oscilloscope" width="800" height="200"></canvas>
-
+<h1>ESP32 Heart Pulse Dashboard</h1>
+<canvas id="osc" width="600" height="200"></canvas>
+<div id="bpm">BPM: 0</div>
 <script src="dashboard.js"></script>
 </body>
 </html>
